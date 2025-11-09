@@ -1,45 +1,51 @@
-from transformers import pipeline 
+from transformers import pipeline
+from abc import ABC, abstractmethod
 
-def validate_predict_inputs(modality: str, inputs: dict, options: dict | None) -> bool:
-    """
-    Validate inputs based on modality.
-    
-    Args:
-        modality (str): The modality of the prediction (e.g., "text").
-        inputs (dict): The input data for prediction.
-        options (dict | None): Additional options for prediction.
+class BasePredictor(ABC):
+    @abstractmethod
+    def validate_inputs(self, modality: str, inputs: dict, options: dict | None) -> bool:
+        pass
+    @abstractmethod
+    def predict(self, inputs: dict) -> dict:
+        pass
 
-    Returns:
-        bool: True if inputs are valid for the modality, False otherwise.
-    """
-    try:
-        modalities_to_inputs = {
-            "text": ["input_text"]
-        }
+class TextPredictor(BasePredictor):
+    def __init__(self):
+        self.pipeline = pipeline(task="text-classification", model="distilbert-base-uncased-finetuned-sst-2-english")
+        self.valid_inputs = {"input_text"}
+
+    def validate_inputs(self, inputs: dict, options: dict | None) -> bool:
+        """
+        Validate inputs based on modality.
         
-        if modality not in modalities_to_inputs:
+        Args:
+            modality (str): The modality of the prediction (e.g., "text").
+            inputs (dict): The input data for prediction.
+            options (dict | None): Additional options for prediction.
+
+        Returns:
+            bool: True if inputs are valid for the modality, False otherwise.
+        """
+        try:
+            for input in inputs:
+                if input not in self.valid_inputs:
+                    return False
+            return True
+        except Exception:
             return False
-        valid_inputs = modalities_to_inputs[modality]
-        for input in inputs:
-            if input not in valid_inputs:
-                return False
-        return True
-    except Exception:
-        return False
 
-def predict_text_classification(input_text: str) -> dict:
-    """
-    Perform text classification using a pre-trained model.
+    def predict(self, input_text: str) -> dict:
+        """
+        Perform text classification using a pre-trained model.
 
-    Args:
-        input_text (str): The text to classify.
+        Args:
+            input_text (str): The text to classify.
 
-    Returns:
-        dict: The classification result.
-    """
-    try:
-        pipe = pipeline(task="text-classification", model="distilbert-base-uncased-finetuned-sst-2-english")
-        result = pipe(input_text)[0]
-        return {"label": result['label'], "score": result['score']}
-    except Exception as e:
-        return {"error": str(e)}
+        Returns:
+            dict: The classification result.
+        """
+        try:
+            result = self.pipeline(input_text)[0]
+            return {"label": result['label'], "score": result['score']}
+        except Exception as e:
+            return {"error": str(e)}

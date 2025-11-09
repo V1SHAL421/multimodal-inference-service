@@ -1,7 +1,7 @@
 from typing import Optional, Union, Any
 from fastapi import FastAPI
 from pydantic import BaseModel
-from src.utils import validate_predict_inputs, predict_text_classification
+from src.utils import TextPredictor
 
 app = FastAPI()
 
@@ -16,9 +16,13 @@ def read_root():
 @app.post("/predict/{modality}")
 def predict_model(modality: str, inputs: dict[str, Any], options: Optional[dict[str, Any]] = None):
     try:
-        if not validate_predict_inputs(modality, inputs, options):
-            return {"error": "Invalid inputs for the specified modality."}
-        return predict_text_classification(inputs["input_text"])
+        if modality == "text":
+            text_predictor = TextPredictor()
+            if not text_predictor.validate_inputs(inputs, options):
+                return {"error": "Invalid inputs for the specified modality."}
+            return text_predictor.predict(inputs["input_text"])
+        else:
+            return {"error": "Unsupported modality."}
     except Exception as e:
         return {"error": str(e)}
 
