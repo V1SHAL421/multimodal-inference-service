@@ -1,6 +1,8 @@
 from transformers import pipeline
 from abc import ABC, abstractmethod
 
+from tasks import predict_text_input
+
 class BasePredictor(ABC):
     @abstractmethod
     def validate_inputs(self, modality: str, inputs: dict, options: dict | None) -> bool:
@@ -8,6 +10,7 @@ class BasePredictor(ABC):
     @abstractmethod
     def predict(self, inputs: dict) -> dict:
         pass
+
 
 class TextPredictor(BasePredictor):
     def __init__(self):
@@ -47,5 +50,21 @@ class TextPredictor(BasePredictor):
         try:
             result = self.pipeline(input_text)[0]
             return {"label": result['label'], "score": result['score']}
+        except Exception as e:
+            return {"error": str(e)}
+
+
+    def predict_async(self, inputs: dict) -> dict:
+        """
+        Placeholder for asynchronous prediction method.
+
+        Args:
+            inputs (dict): The input data for prediction.
+        Returns:
+            dict: The prediction result.
+        """
+        try:
+            result = predict_text_input.delay(inputs["input_text"])
+            return {"task_id": result.id}
         except Exception as e:
             return {"error": str(e)}

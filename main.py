@@ -26,7 +26,7 @@ def predict_model(modality: str, inputs: dict[str, Any], options: Optional[dict[
     except Exception as e:
         return {"error": str(e)}
 
-@app.get("/predict_async")
+@app.get("/predict_async/{modality}")
 def predict_model_async(feature1: float, feature2: float):
     pass
 
