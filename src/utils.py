@@ -1,7 +1,5 @@
-from transformers import pipeline
 from abc import ABC, abstractmethod
-
-from tasks import predict_text_input
+from textblob import TextBlob
 
 class BasePredictor(ABC):
     @abstractmethod
@@ -14,7 +12,6 @@ class BasePredictor(ABC):
 
 class TextPredictor(BasePredictor):
     def __init__(self):
-        self.pipeline = pipeline(task="text-classification", model="distilbert-base-uncased-finetuned-sst-2-english")
         self.valid_inputs = {"input_text"}
 
     def validate_inputs(self, inputs: dict, options: dict | None) -> bool:
@@ -48,11 +45,17 @@ class TextPredictor(BasePredictor):
             dict: The classification result.
         """
         try:
-            result = self.pipeline(input_text)[0]
-            return {"label": result['label'], "score": result['score']}
+            blob = TextBlob(input_text)
+            sentiment = blob.sentiment  # type: ignore
+            polarity = sentiment.polarity  # type: ignore
+            if polarity > 0:
+                return {"label": "POSITIVE", "score": polarity}
+            elif polarity < 0:
+                return {"label": "NEGATIVE", "score": abs(polarity)}
+            else:
+                return {"label": "NEUTRAL", "score": 0.0}
         except Exception as e:
             return {"error": str(e)}
-
 
     def predict_async(self, inputs: dict) -> dict:
         """
@@ -64,6 +67,7 @@ class TextPredictor(BasePredictor):
             dict: The prediction result.
         """
         try:
+            from tasks import predict_text_input
             result = predict_text_input.delay(inputs["input_text"])
             return {"task_id": result.id}
         except Exception as e:
