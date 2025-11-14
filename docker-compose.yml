@@ -1,0 +1,125 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  db:
+    image: postgres:15-alpine
+    container_name: ml_postgres
+    environment:
+      POSTGRES_USER: mluser
+      POSTGRES_PASSWORD: mlpassword
+      POSTGRES_DB: predictions
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mluser -d predictions"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis for Celery broker
+  redis:
+    image: redis:7-alpine
+    container_name: ml_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # FastAPI service
+  api:
+    build:
+      context: .
+      dockerfile: api/Dockerfile
+    container_name: ml_api
+    environment:
+      DATABASE_URL: postgresql://mluser:mlpassword@db:5432/predictions
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    volumes:
+      - ./src:/app/src
+      - ./models:/app/models
+      - ./worker:/app/worker
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
+
+  # Celery worker for batch inference
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    container_name: ml_worker
+    environment:
+      DATABASE_URL: postgresql://mluser:mlpassword@db:5432/predictions
+      REDIS_URL: redis://redis:6379/0
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/0
+    volumes:
+      - ./src:/app/src
+      - ./models:/app/models
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: celery -A worker.celery_app worker --loglevel=info --concurrency=2
+
+  # Nginx load balancer
+  proxy:
+    image: nginx:alpine
+    container_name: ml_proxy
+    volumes:
+      - ./proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - api
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Prometheus monitoring
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: ml_prometheus
+    volumes:
+      - ./obs/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    ports:
+      - "9090:9090"
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+
+  # Grafana for visualization (optional but useful)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ml_grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+volumes:
+  postgres_data:
+  prometheus_data:
+  grafana_data:

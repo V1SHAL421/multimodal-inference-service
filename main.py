@@ -33,7 +33,7 @@ def predict_model_async(modality: str, inputs: dict[str, Any], options: Optional
             text_predictor = TextPredictor()
             if not text_predictor.validate_inputs(inputs, options):
                 return {"error": "Invalid inputs for the specified modality."}
-            return text_predictor.predict_async(inputs["input_text"])
+            return text_predictor.predict_async(inputs)
         else:
             return {"error": "Unsupported modality."}
     except Exception as e:

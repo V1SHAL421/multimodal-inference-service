@@ -1,5 +1,5 @@
-from utils import TextPredictor
-from setup_celery import app
+from src.utils import TextPredictor
+from src.setup_celery import app
 
 @app.task
 def predict_text_input(input_text: str) -> dict:

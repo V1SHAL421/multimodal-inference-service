@@ -67,7 +67,7 @@ class TextPredictor(BasePredictor):
             dict: The prediction result.
         """
         try:
-            from tasks import predict_text_input
+            from src.tasks import predict_text_input
             result = predict_text_input.delay(inputs["input_text"])
             return {"task_id": result.id}
         except Exception as e:
